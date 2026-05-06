@@ -16,7 +16,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-Python
 def save_user(fname, lname, password):
     conn = sqlite3.connect('quest.db')
     c = conn.cursor()
