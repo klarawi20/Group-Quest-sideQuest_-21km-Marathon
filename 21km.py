@@ -16,14 +16,19 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_user(fname, lname):
+Python
+def save_user(fname, lname, password):
     conn = sqlite3.connect('quest.db')
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO users (firstname, lastname, start_date) VALUES (?, ?, ?)", 
-                  (fname, lname, date.today()))
+        # Wir fügen die Spalte 'password' zum Insert-Befehl hinzu
+        c.execute("INSERT INTO users (firstname, lastname, password, start_date) VALUES (?, ?, ?, ?)", 
+                  (fname, lname, password, date.today()))
         conn.commit()
         return True
+    except sqlite3.IntegrityError:
+        st.error("Dieser Benutzername existiert bereits.")
+        return False
     except Exception as e:
         st.error(f"Fehler beim Speichern: {e}")
         return False
@@ -40,22 +45,32 @@ choice = st.sidebar.selectbox("Navigation", menu)
 
 # --- SEITE: ANMELDUNG ---
 if choice == "Anmeldung":
-    st.title("Willkommen zur Challenge")
-    st.markdown("Registriere dich hier, um deinen 12-Wochen-Plan zu starten.")
+    st.title("Erstelle dein Läufer-Konto")
+    st.markdown("Damit deine Fortschritte individuell gespeichert werden, erstelle bitte ein Profil.")
     
     with st.form("registration_form"):
-        firstname = st.text_input("Vorname")
-        lastname = st.text_input("Nachname")
-        submit = st.form_submit_button("Jetzt registrieren")
+        col1, col2 = st.columns(2)
+        with col1:
+            firstname = st.text_input("Vorname")
+        with col2:
+            lastname = st.text_input("Nachname")
+            
+        password = st.text_input("Wähle ein Passwort", type="password")
+        password_confirm = st.text_input("Passwort bestätigen", type="password")
+        
+        submit = st.form_submit_button("Konto erstellen")
         
         if submit:
-            if firstname and lastname:
-                if save_user(firstname, lastname):
-                    st.success(f"Willkommen, {firstname}! Dein Training startet heute.")
-                    st.balloons()
-                    st.session_state.user = firstname
+            if not (firstname and lastname and password):
+                st.error("Bitte alle Felder ausfüllen.")
+            elif password != password_confirm:
+                st.error("Die Passwörter stimmen nicht überein.")
             else:
-                st.error("Bitte beide Felder ausfüllen.")
+                if save_user(firstname, lastname, password):
+                    st.success(f"Konto für {firstname} erfolgreich erstellt!")
+                    st.balloons()
+                    # Wir merken uns den User direkt für diese Session
+                    st.session_state.user = firstname
 
 # --- SEITE: TRAININGSPLAN ---
 elif choice == "Mein Trainingsplan":
