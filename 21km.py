@@ -6,12 +6,13 @@ from datetime import date
 def init_db():
     conn = sqlite3.connect('quest.db')
     c = conn.cursor()
-    # Tabelle erstellen, falls sie noch nicht existiert
+    # Tabellen für User und den Plan erstellen
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   firstname TEXT, 
                   lastname TEXT, 
-                  start_date DATE)''')
+                  start_date DATE,
+                  points INTEGER DEFAULT 0)''')
     conn.commit()
     conn.close()
 
@@ -29,35 +30,47 @@ def save_user(fname, lname):
     finally:
         conn.close()
 
-# --- APP STARTEN ---
+# --- APP INITIALISIERUNG ---
 init_db()
 
-st.title("🏃‍♂️ 21km-Challenge")
-st.markdown("""
-Herzlich Willkommen zur **Half-Marathon Quest**! 
-Hier kannst du deinen Fortschritt verfolgen und dich mit anderen Teilnehmern messen. 
-Viel Erfolg bei deinem Training!
-""")
+# --- SIDEBAR NAVIGATION (User Story 2) ---
+st.sidebar.title("🏃‍♂️ 21km-Challenge")
+menu = ["Anmeldung", "Mein Trainingsplan", "Leaderboard", "Check-in"]
+choice = st.sidebar.selectbox("Navigation", menu)
 
-# --- REGISTRIERUNG (Sprint 1) ---
-st.subheader("Anmeldung")
+# --- SEITE: ANMELDUNG ---
+if choice == "Anmeldung":
+    st.title("Willkommen zur Challenge")
+    st.markdown("Registriere dich hier, um deinen 12-Wochen-Plan zu starten.")
+    
+    with st.form("registration_form"):
+        firstname = st.text_input("Vorname")
+        lastname = st.text_input("Nachname")
+        submit = st.form_submit_button("Jetzt registrieren")
+        
+        if submit:
+            if firstname and lastname:
+                if save_user(firstname, lastname):
+                    st.success(f"Willkommen, {firstname}! Dein Training startet heute.")
+                    st.balloons()
+                    st.session_state.user = firstname
+            else:
+                st.error("Bitte beide Felder ausfüllen.")
 
-# Eingabefelder (Nur einmal definiert)
-firstname = st.text_input("Vorname")
-lastname = st.text_input("Nachname")
+# --- SEITE: TRAININGSPLAN ---
+elif choice == "Mein Trainingsplan":
+    st.title("Dein 12-Wochen-Weg")
+    st.info("Hier wird bald dein dynamischer Laufplan angezeigt.")
+    # Platzhalter für die Trainings-Logik (Sprint 2)
+    st.write("Tag 1: Lockerer Lauf - 5.0 km")
 
-if st.button("Jetzt registrieren"):
-    if firstname and lastname:
-        success = save_user(firstname, lastname)
-        if success:
-            st.success(f"Willkommen im Team, {firstname}!")
-            st.write(f"Dein Profil: **{firstname} {lastname.upper()}**")
-            st.balloons()
-            # Hier setzen wir den User in den Session State für Sprint 2
-            st.session_state.user = firstname
-    else:
-        st.warning("Bitte gib sowohl Vorname als auch Nachname ein.")
+# --- SEITE: LEADERBOARD ---
+elif choice == "Leaderboard":
+    st.title("🏆 Leaderboard")
+    st.write("Wer führt die Challenge an?")
+    # Platzhalter für die Highscore-Tabelle (Sprint 3)
 
-# --- NAVIGATION (Vorschau für Sprint 2) ---
-if 'user' in st.session_state:
-    st.sidebar.success(f"Eingeloggt als: {st.session_state.user}")
+# --- SEITE: CHECK-IN ---
+elif choice == "Check-in":
+    st.title("Lauf loggen")
+    st.write("Trage hier deine gelaufenen Kilometer ein.")
