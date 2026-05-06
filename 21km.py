@@ -59,10 +59,25 @@ if choice == "Anmeldung":
 
 # --- SEITE: TRAININGSPLAN ---
 elif choice == "Mein Trainingsplan":
-    st.title("Dein 12-Wochen-Weg")
-    st.info("Hier wird bald dein dynamischer Laufplan angezeigt.")
-    # Platzhalter für die Trainings-Logik (Sprint 2)
-    st.write("Tag 1: Lockerer Lauf - 5.0 km")
+    st.title("🏃‍♂️ Dein 12-Wochen-Weg")
+    st.markdown("Hier ist deine Roadmap zum Halbmarathon:")
+
+    # Beispiel-Daten für den Plan (Woche 1)
+    plan_data = {
+        "Woche": [1, 1, 1, 1, 1, 1, 1],
+        "Tag": ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
+        "Training": ["Rest", "5km Lauf", "Rest", "4x800m Intervalle", "Rest", "Lockerer Lauf 6km", "Langer Lauf 8km"],
+        "Ziel (km)": [0, 5.0, 0, 3.2, 0, 6.0, 8.0]
+    }
+    
+    import pandas as pd
+    df_plan = pd.DataFrame(plan_data)
+    
+    # Anzeige als Tabelle
+    st.table(df_plan)
+    
+    st.info("💡 Tipp: Konsistenz ist wichtiger als Geschwindigkeit!")
+
 
 # --- SEITE: LEADERBOARD ---
 elif choice == "Leaderboard":
