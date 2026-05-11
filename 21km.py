@@ -1,211 +1,96 @@
-import sqlite3
-from datetime import date, datetime
-
-import pandas as pd
 import streamlit as st
-
-DB_PATH = "quest.db"
-
-
-# --- TRAININGSPLAN ---
-TRAINING_PLAN = [
-    {"Woche": 1, "Tag": "Mo", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 1, "Tag": "Di", "Training": "5 km lockerer Lauf", "Ziel (km)": 5.0},
-    {"Woche": 1, "Tag": "Mi", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 1, "Tag": "Do", "Training": "4 x 800 m Intervalle", "Ziel (km)": 3.2},
-    {"Woche": 1, "Tag": "Fr", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 1, "Tag": "Sa", "Training": "6 km lockerer Lauf", "Ziel (km)": 6.0},
-    {"Woche": 1, "Tag": "So", "Training": "8 km langer Lauf", "Ziel (km)": 8.0},
-
-    {"Woche": 2, "Tag": "Mo", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 2, "Tag": "Di", "Training": "5 km lockerer Lauf", "Ziel (km)": 5.0},
-    {"Woche": 2, "Tag": "Mi", "Training": "Stabi & Mobility", "Ziel (km)": 0.0},
-    {"Woche": 2, "Tag": "Do", "Training": "5 km Tempowechsel", "Ziel (km)": 5.0},
-    {"Woche": 2, "Tag": "Fr", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 2, "Tag": "Sa", "Training": "7 km lockerer Lauf", "Ziel (km)": 7.0},
-    {"Woche": 2, "Tag": "So", "Training": "9 km langer Lauf", "Ziel (km)": 9.0},
-
-    # ... Wochen 3 bis 12 genauso wie im ZIP ...
-
-    {"Woche": 12, "Tag": "Mo", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 12, "Tag": "Di", "Training": "6 km lockerer Lauf", "Ziel (km)": 6.0},
-    {"Woche": 12, "Tag": "Mi", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 12, "Tag": "Do", "Training": "4 km locker + Steigerungen", "Ziel (km)": 4.0},
-    {"Woche": 12, "Tag": "Fr", "Training": "Rest", "Ziel (km)": 0.0},
-    {"Woche": 12, "Tag": "Sa", "Training": "Aktivierung 3 km", "Ziel (km)": 3.0},
-    {"Woche": 12, "Tag": "So", "Training": "Halbmarathon / 21,1 km", "Ziel (km)": 21.1},
-]
-
+import sqlite3
+import pandas as pd
+from datetime import date, datetime
 
 # --- DATENBANK FUNKTIONEN ---
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect('quest.db')
     c = conn.cursor()
 
-    c.execute(
-        """CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  firstname TEXT,
-                  lastname TEXT,
-                  start_date DATE,
-                  points INTEGER DEFAULT 0)"""
-    )
+    # USERS TABELLE
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            firstname TEXT,
+            lastname TEXT,
+            password TEXT,
+            start_date DATE,
+            points INTEGER DEFAULT 0
+        )
+    ''')
 
-    c.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in c.fetchall()]
-
-    if "password" not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN password TEXT")
+    # CHECKINS TABELLE
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS checkins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            run_date DATE,
+            actual_km REAL,
+            duration_min INTEGER,
+            points_earned INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
 
     conn.commit()
     conn.close()
 
 
-def save_user(fname, lname, password):
-    conn = sqlite3.connect(DB_PATH)
+def save_user(fname, lname, password, start_date):
+    conn = sqlite3.connect('quest.db')
     c = conn.cursor()
+
     try:
         c.execute(
-            "INSERT INTO users (firstname, lastname, password, start_date) VALUES (?, ?, ?, ?)",
-            (fname, lname, password, date.today().isoformat()),
+            """
+            INSERT INTO users 
+            (firstname, lastname, password, start_date)
+            VALUES (?, ?, ?, ?)
+            """,
+            (fname, lname, password, start_date)
         )
+
         conn.commit()
         return True
+
     except Exception as e:
         st.error(f"Fehler beim Speichern: {e}")
         return False
+
     finally:
         conn.close()
-
-
-def get_user(firstname):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "SELECT id, firstname, lastname, start_date, points FROM users WHERE firstname = ? ORDER BY id DESC LIMIT 1",
-        (firstname,),
-    )
-    row = c.fetchone()
-    conn.close()
-
-    if not row:
-        return None
-
-    return {
-        "id": row[0],
-        "firstname": row[1],
-        "lastname": row[2],
-        "start_date": row[3],
-        "points": row[4] or 0,
-    }
-
-
-def get_user_stats(firstname):
-    user = get_user(firstname)
-    if not user:
-        return {"points": 0, "kilometers": 0}
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    try:
-        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checkins'")
-        has_checkins_table = c.fetchone() is not None
-
-        if not has_checkins_table:
-            return {"points": user["points"], "kilometers": 0}
-
-        c.execute(
-            "SELECT COALESCE(SUM(actual_km), 0) FROM checkins WHERE user_id = ?",
-            (user["id"],),
-        )
-        total_km = c.fetchone()[0]
-        return {"points": user["points"], "kilometers": total_km}
-    except Exception as e:
-        st.error(f"Fehler beim Laden der Statistik: {e}")
-        return {"points": user["points"], "kilometers": 0}
-    finally:
-        conn.close()
-
-
-# --- ISSUE #7: HEUTIGEN LAUF BERECHNEN ---
-def parse_start_date(start_date_value):
-    if isinstance(start_date_value, date):
-        return start_date_value
-    return datetime.strptime(str(start_date_value), "%Y-%m-%d").date()
-
-
-def get_today_training(start_date_value, today=None):
-    today = today or date.today()
-    start = parse_start_date(start_date_value)
-    days_since_start = (today - start).days
-
-    if days_since_start < 0:
-        return {
-            "status": "not_started",
-            "days_until_start": abs(days_since_start),
-            "start_date": start,
-        }
-
-    if days_since_start >= len(TRAINING_PLAN):
-        return {
-            "status": "finished",
-            "days_since_start": days_since_start,
-            "start_date": start,
-        }
-
-    training = TRAINING_PLAN[days_since_start].copy()
-    training["status"] = "active"
-    training["plan_day"] = days_since_start + 1
-    training["start_date"] = start
-    return training
-
-
-def show_today_training(firstname):
-    user = get_user(firstname)
-    if not user or not user.get("start_date"):
-        st.info("Erstelle zuerst ein Profil, damit dein heutiger Lauf berechnet werden kann.")
-        return
-
-    today_training = get_today_training(user["start_date"])
-
-    st.subheader("📅 Dein heutiger Lauf")
-
-    if today_training["status"] == "not_started":
-        st.info(
-            f"Dein Trainingsplan startet am {today_training['start_date'].strftime('%d.%m.%Y')}. "
-            f"Noch {today_training['days_until_start']} Tag(e) bis zum Start."
-        )
-        return
-
-    if today_training["status"] == "finished":
-        st.success("Du hast den 12-Wochen-Plan abgeschlossen. Stark! 🎉")
-        return
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Woche", today_training["Woche"])
-    col2.metric("Plantag", today_training["plan_day"])
-    col3.metric("Ziel", f"{today_training['Ziel (km)']:.1f} km")
-
-    st.success(f"Heute steht an: **{today_training['Training']}**")
 
 
 # --- APP INITIALISIERUNG ---
 init_db()
 
+# --- SIDEBAR ---
 st.sidebar.title("🏃‍♂️ 21km-Challenge")
-menu = ["Anmeldung", "Profil & Statistik", "Mein Trainingsplan", "Leaderboard", "Check-in"]
+
+menu = [
+    "Anmeldung",
+    "Mein Trainingsplan",
+    "Leaderboard",
+    "Check-in"
+]
+
 choice = st.sidebar.selectbox("Navigation", menu)
 
-if "user" in st.session_state:
-    show_today_training(st.session_state.user)
-    st.divider()
-
-
-# --- SEITE: ANMELDUNG ---
+# =========================================================
+# ANMELDUNG
+# =========================================================
 if choice == "Anmeldung":
-    st.title("Erstelle dein Läufer-Konto")
+
+    st.title("🏃‍♂️ Erstelle dein Läufer-Konto")
+
+    st.markdown(
+        "Damit deine Fortschritte individuell gespeichert werden, "
+        "erstelle bitte ein Profil."
+    )
 
     with st.form("registration_form"):
+
         col1, col2 = st.columns(2)
 
         with col1:
@@ -214,65 +99,366 @@ if choice == "Anmeldung":
         with col2:
             lastname = st.text_input("Nachname")
 
-        password = st.text_input("Wähle ein Passwort", type="password")
-        password_confirm = st.text_input("Passwort bestätigen", type="password")
+        start_date = st.date_input("Startdatum auswählen")
+
+        password = st.text_input(
+            "Wähle ein Passwort",
+            type="password"
+        )
+
+        password_confirm = st.text_input(
+            "Passwort bestätigen",
+            type="password"
+        )
 
         submit = st.form_submit_button("Konto erstellen")
 
         if submit:
+
             if not (firstname and lastname and password):
                 st.error("Bitte alle Felder ausfüllen.")
+
             elif password != password_confirm:
                 st.error("Die Passwörter stimmen nicht überein.")
-            elif save_user(firstname, lastname, password):
-                st.success(f"Konto für {firstname} erfolgreich erstellt!")
-                st.balloons()
-                st.session_state.user = firstname
-                st.rerun()
+
+            else:
+
+                if save_user(
+                    firstname,
+                    lastname,
+                    password,
+                    start_date
+                ):
+
+                    st.success(
+                        f"Konto für {firstname} erfolgreich erstellt!"
+                    )
+
+                    st.balloons()
+
+                    # User in Session speichern
+                    st.session_state.user = firstname
 
 
-# --- SEITE: PROFIL & STATISTIK ---
-elif choice == "Profil & Statistik":
-    st.title("🏃‍♂️ Dein Läufer-Profil")
-
-    if "user" in st.session_state:
-        logged_in_user = st.session_state.user
-        stats = get_user_stats(logged_in_user)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric(label="Gesamtleistung", value=f"{stats['kilometers']:.1f} km")
-
-        with col2:
-            st.metric(label="Gesammelte Punkte", value=f"{stats['points']} Pkt")
-
-        st.info("💡 Logge deinen nächsten Lauf im 'Check-in', um deine Statistik zu erhöhen!")
-    else:
-        st.warning("⚠️ Bitte erst unter 'Anmeldung' ein Profil erstellen.")
-
-
-# --- SEITE: TRAININGSPLAN ---
+# =========================================================
+# TRAININGSPLAN
+# =========================================================
 elif choice == "Mein Trainingsplan":
-    st.title("🏃‍♂️ Dein 12-Wochen-Weg")
-    st.markdown("Hier ist deine Roadmap zum Halbmarathon:")
 
-    if "user" in st.session_state:
-        show_today_training(st.session_state.user)
+    st.title("🏃‍♂️ Dein 3-Wochen-Trainingsplan")
 
-    df_plan = pd.DataFrame(TRAINING_PLAN)
-    st.dataframe(df_plan, use_container_width=True, hide_index=True)
+    st.markdown(
+        "Hier ist deine Roadmap zum Halbmarathon:"
+    )
 
-    st.info("💡 Tipp: Konsistenz ist wichtiger als Geschwindigkeit!")
+    # 3-WOCHEN TRAININGSPLAN
+    plan_data = {
+        "Woche": [
+            1,1,1,1,1,1,1,
+            2,2,2,2,2,2,2,
+            3,3,3,3,3,3,3
+        ],
+
+        "Tag": [
+            "Mo","Di","Mi","Do","Fr","Sa","So",
+            "Mo","Di","Mi","Do","Fr","Sa","So",
+            "Mo","Di","Mi","Do","Fr","Sa","So"
+        ],
+
+        "Training": [
+            "Rest-Day",
+            "5km Lauf",
+            "Rest-Day",
+            "4x800m Intervalle",
+            "Rest",
+            "Lockerer Lauf 6km",
+            "Langer Lauf 8km",
+
+            "Rest-Day",
+            "6km Lauf",
+            "Rest-Day",
+            "5x800m Intervalle",
+            "Rest-Day",
+            "Lockerer Lauf 7km",
+            "Langer Lauf 10km",
+
+            "Rest-Day",
+            "7km Lauf",
+            "Rest-Day",
+            "6x800m Intervalle",
+            "Rest-Day",
+            "Lockerer Lauf 8km",
+            "Langer Lauf 12km"
+        ],
+
+        "Ziel (km)": [
+            0,5.0,0,3.2,0,6.0,8.0,
+            0,6.0,0,4.0,0,7.0,10.0,
+            0,7.0,0,4.8,0,8.0,12.0
+        ]
+    }
+
+    df_plan = pd.DataFrame(plan_data)
+
+    # USER PRÜFEN
+    if "user" not in st.session_state:
+
+        st.warning(
+            "Bitte erstelle zuerst ein Konto."
+        )
+
+    else:
+
+        firstname = st.session_state.user
+
+        conn = sqlite3.connect("quest.db")
+        c = conn.cursor()
+
+        c.execute(
+            """
+            SELECT start_date 
+            FROM users 
+            WHERE firstname = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (firstname,)
+        )
+
+        result = c.fetchone()
+
+        conn.close()
+
+        if result:
+
+            start_date = datetime.strptime(
+                result[0],
+                "%Y-%m-%d"
+            ).date()
+
+            days_since_start = (
+                date.today() - start_date
+            ).days
+
+            if days_since_start < 0:
+
+                st.error(
+                    "Dein Startdatum liegt in der Zukunft."
+                )
+
+            elif days_since_start >= len(df_plan):
+
+                st.success(
+                    "🎉 Dein 3-Wochen-Trainingsplan ist abgeschlossen!"
+                )
+
+            else:
+
+                todays_training = df_plan.iloc[
+                    days_since_start
+                ]
+
+                st.subheader("📌 Dein heutiger Lauf")
+
+                st.info(
+                    f"Tag {days_since_start + 1} "
+                    f"({todays_training['Tag']}): "
+                    f"{todays_training['Training']}"
+                )
+
+                if todays_training["Ziel (km)"] > 0:
+
+                    st.write(
+                        f"Ziel: "
+                        f"**{todays_training['Ziel (km)']} km**"
+                    )
+
+                else:
+
+                    st.write(
+                        "Heute ist ein Ruhetag 💪"
+                    )
+
+    st.subheader("📅 Kompletter Trainingsplan")
+
+    def highlight_rest_days(row):
+       if row["Training"] == "Rest-Day":
+            return ["background-color: #89986D"] * len(row)  # hellgrün
+       else:
+            return [""] * len(row)
+
+    styled_df = df_plan.style.apply(
+        highlight_rest_days,
+        axis=1
+    )
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True
+    )
+    
+
+    st.info(
+        "💡 Tipp: Konsistenz ist wichtiger als Geschwindigkeit!"
+    )
 
 
-# --- SEITE: LEADERBOARD ---
+# =========================================================
+# LEADERBOARD
+# =========================================================
 elif choice == "Leaderboard":
+
     st.title("🏆 Leaderboard")
-    st.write("Wer führt die Challenge an?")
+
+    conn = sqlite3.connect("quest.db")
+
+    leaderboard = pd.read_sql_query(
+        """
+        SELECT firstname, lastname, points
+        FROM users
+        ORDER BY points DESC
+        """,
+        conn
+    )
+
+    conn.close()
+
+    if leaderboard.empty:
+
+        st.info("Noch keine Punkte vorhanden.")
+
+    else:
+
+        st.dataframe(
+            leaderboard,
+            use_container_width=True
+        )
 
 
-# --- SEITE: CHECK-IN ---
+# =========================================================
+# CHECK-IN
+# =========================================================
 elif choice == "Check-in":
-    st.title("Lauf loggen")
-    st.write("Trage hier deine gelaufenen Kilometer ein.")
+
+    st.title("🏃‍♂️ Lauf loggen")
+
+    if "user" not in st.session_state:
+
+        st.warning(
+            "Bitte erstelle zuerst ein Konto, "
+            "um deine Läufe zu speichern."
+        )
+
+    else:
+
+        st.write(
+            f"Hallo **{st.session_state.user}**, "
+            f"trage hier dein Training ein:"
+        )
+
+        with st.form("checkin_form"):
+
+            run_date = st.date_input(
+                "Wann bist du gelaufen?",
+                date.today()
+            )
+
+            km = st.number_input(
+                "Distanz in km",
+                min_value=0.1,
+                step=0.1
+            )
+
+            duration = st.number_input(
+                "Dauer in Minuten",
+                min_value=1,
+                step=1
+            )
+
+            submit_run = st.form_submit_button(
+                "Lauf speichern & Punkte sammeln"
+            )
+
+            if submit_run:
+
+                earned_points = int(km * 10)
+
+                try:
+
+                    conn = sqlite3.connect("quest.db")
+                    c = conn.cursor()
+
+                    c.execute(
+                        """
+                        SELECT id 
+                        FROM users 
+                        WHERE firstname = ?
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        (st.session_state.user,)
+                    )
+
+                    user = c.fetchone()
+
+                    if user is None:
+
+                        st.error(
+                            "Benutzer wurde nicht gefunden."
+                        )
+
+                    else:
+
+                        user_id = user[0]
+
+                        # CHECKIN SPEICHERN
+                        c.execute(
+                            """
+                            INSERT INTO checkins
+                            (
+                                user_id,
+                                run_date,
+                                actual_km,
+                                duration_min,
+                                points_earned
+                            )
+                            VALUES (?, ?, ?, ?, ?)
+                            """,
+                            (
+                                user_id,
+                                run_date,
+                                km,
+                                duration,
+                                earned_points
+                            )
+                        )
+
+                        # PUNKTE UPDATEN
+                        c.execute(
+                            """
+                            UPDATE users
+                            SET points = points + ?
+                            WHERE id = ?
+                            """,
+                            (
+                                earned_points,
+                                user_id
+                            )
+                        )
+
+                        conn.commit()
+
+                        st.success(
+                            f"Super! Du hast {km} km geloggt "
+                            f"und {earned_points} Punkte erhalten!"
+                        )
+
+                        st.balloons()
+
+                    conn.close()
+
+                except Exception as e:
+
+                    st.error(
+                        f"Fehler beim Speichern: {e}"
+                    )
