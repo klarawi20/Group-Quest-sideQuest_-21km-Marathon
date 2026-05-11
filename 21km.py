@@ -276,3 +276,4 @@ elif choice == "Leaderboard":
 elif choice == "Check-in":
     st.title("Lauf loggen")
     st.write("Trage hier deine gelaufenen Kilometer ein.")
+    
