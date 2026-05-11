@@ -6,15 +6,25 @@ from datetime import date
 def init_db():
     conn = sqlite3.connect('quest.db')
     c = conn.cursor()
-    # Tabellen für User und den Plan erstellen
+
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   firstname TEXT, 
                   lastname TEXT, 
                   start_date DATE,
                   points INTEGER DEFAULT 0)''')
+
+    # Falls die Tabelle schon existiert, password-Spalte nachträglich hinzufügen
+    c.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in c.fetchall()]
+
+    if "password" not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN password TEXT")
+
     conn.commit()
     conn.close()
+
+
 
 def save_user(fname, lname, password):
     conn = sqlite3.connect('quest.db')
