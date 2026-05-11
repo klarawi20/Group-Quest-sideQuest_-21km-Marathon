@@ -394,84 +394,126 @@ elif choice == "Check-in":
 
             if submit_run:
 
-                earned_points = int(km * 10)
+                # VALIDIERUNG: keine 0 oder negativen Werte erlauben
+                if km <= 0:
+                    st.error("Die Kilometer müssen größer als 0 sein.")
 
-                try:
+                elif duration <= 0:
+                    st.error("Die Dauer muss größer als 0 sein.")
 
-                    conn = sqlite3.connect("quest.db")
-                    c = conn.cursor()
+                else:
+                    earned_points = int(km * 10)
 
-                    c.execute(
-                        """
-                        SELECT id 
-                        FROM users 
-                        WHERE firstname = ?
-                        ORDER BY id DESC
-                        LIMIT 1
-                        """,
-                        (st.session_state.user,)
-                    )
+                    try:
+                        conn = sqlite3.connect("quest.db")
+                        c = conn.cursor()
 
-                    user = c.fetchone()
-
-                    if user is None:
-
-                        st.error(
-                            "Benutzer wurde nicht gefunden."
-                        )
-
-                    else:
-
-                        user_id = user[0]
-
-                        # CHECKIN SPEICHERN
                         c.execute(
                             """
-                            INSERT INTO checkins
-                            (
-                                user_id,
-                                run_date,
-                                actual_km,
-                                duration_min,
-                                points_earned
-                            )
-                            VALUES (?, ?, ?, ?, ?)
+                            SELECT id 
+                            FROM users 
+                            WHERE firstname = ?
+                            ORDER BY id DESC
+                            LIMIT 1
                             """,
-                            (
-                                user_id,
-                                run_date,
-                                km,
-                                duration,
-                                earned_points
+                            (st.session_state.user,)
+                        )
+
+                        user = c.fetchone()
+
+                        if user is None:
+                            st.error("Benutzer wurde nicht gefunden.")
+
+                        else:
+                            user_id = user[0]
+
+                            c.execute(
+                                """
+                                INSERT INTO checkins
+                                (
+                                    user_id,
+                                    run_date,
+                                    actual_km,
+                                    duration_min,
+                                    points_earned
+                                )
+                                VALUES (?, ?, ?, ?, ?)
+                                """,
+                                (
+                                    user_id,
+                                    run_date,
+                                    km,
+                                    duration,
+                                    earned_points
+                                )
                             )
-                        )
 
-                        # PUNKTE UPDATEN
-                        c.execute(
-                            """
-                            UPDATE users
-                            SET points = points + ?
-                            WHERE id = ?
-                            """,
-                            (
-                                earned_points,
-                                user_id
+                            c.execute(
+                                """
+                                UPDATE users
+                                SET points = points + ?
+                                WHERE id = ?
+                                """,
+                                (
+                                    earned_points,
+                                    user_id
+                                )
                             )
-                        )
 
-                        conn.commit()
+                            conn.commit()
 
-                        st.success(
-                            f"Super! Du hast {km} km geloggt "
-                            f"und {earned_points} Punkte erhalten!"
-                        )
+                            st.success(
+                                f"Super! Du hast {km} km geloggt "
+                                f"und {earned_points} Punkte erhalten!"
+                            )
 
-                        st.balloons()
+                            st.balloons()
 
-                    conn.close()
+                        conn.close()
 
-                except Exception as e:
+                    except Exception as e:
+                        st.error(f"Fehler beim Speichern: {e}")
+        # =====================================
+        # LETZTE CHECK-INS ANZEIGEN
+        # =====================================
 
-                    st.error(
-                        f"Fehler beim Speichern: {e}"
-                    )
+        st.subheader("📋 Deine letzten Aktivitäten")
+
+        conn = sqlite3.connect("quest.db")
+
+        query = """
+            SELECT 
+                run_date AS Datum,
+                actual_km AS Kilometer,
+                duration_min AS Minuten,
+                points_earned AS Punkte
+            FROM checkins
+            WHERE user_id = (
+                SELECT id 
+                FROM users
+                WHERE firstname = ?
+                ORDER BY id DESC
+                LIMIT 1
+            )
+            ORDER BY run_date DESC
+            LIMIT 5
+        """
+
+        history_df = pd.read_sql_query(
+            query,
+            conn,
+            params=(st.session_state.user,)
+        )
+
+        conn.close()
+
+        if history_df.empty:
+            st.info("Noch keine Läufe gespeichert.")
+
+        else:
+            history_df.index = history_df.index + 1
+
+            st.dataframe(
+                history_df,
+                use_container_width=True
+            )
