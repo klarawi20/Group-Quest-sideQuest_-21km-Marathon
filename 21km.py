@@ -195,3 +195,35 @@ elif choice == "Leaderboard":
 elif choice == "Check-in":
     st.title("Lauf loggen")
     st.write("Trage hier deine gelaufenen Kilometer ein.")
+
+# --- SEITE: TRAININGSPLAN ---
+elif choice == "Mein Trainingsplan":
+    st.title("🏃‍♂️ Dein 12-Wochen-Weg")
+    st.markdown("Hier ist deine Roadmap zum Halbmarathon. Achte besonders auf die **Rest-Days**, um Verletzungen zu vermeiden.")
+
+    # Beispiel-Daten für den Plan (Woche 1)
+    plan_data = {
+        "Woche": [1, 1, 1, 1, 1, 1, 1],
+        "Tag": ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"],
+        "Training": ["Rest-Day", "5km Lauf", "Rest-Day", "4x800m Intervalle", "Rest-Day", "Lockerer Lauf 6km", "Langer Lauf 8km"],
+        "Ziel (km)": [0, 5.0, 0, 3.2, 0, 6.0, 8.0]
+    }
+    
+    import pandas as pd
+    df_plan = pd.DataFrame(plan_data)
+
+    # Funktion für das Highlighting der Rest-Days (User Story Umsetzung)
+    def highlight_rest_days(row):
+        # Wenn "Rest-Day" im Training steht, färben wir die Zeile ein
+        if row["Training"] == "Rest-Day":
+            return ['background-color: #f0f2f6; color: #555555; font-style: italic'] * len(row)
+        else:
+            return [''] * len(row)
+
+    # Styling anwenden
+    styled_df = df_plan.style.apply(highlight_rest_days, axis=1)
+    
+    # Anzeige der gestylten Tabelle
+    st.dataframe(styled_df, use_container_width=True)
+    
+    st.info("💡 **Regeneration ist Training:** An Rest-Days repariert dein Körper Muskelgewebe und wird stärker.")
