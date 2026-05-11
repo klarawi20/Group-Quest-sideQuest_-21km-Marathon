@@ -20,6 +20,19 @@ def init_db():
         )
     ''')
 
+    # Alte users-Tabelle prüfen und fehlende Spalten ergänzen
+    c.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in c.fetchall()]
+
+    if "password" not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN password TEXT")
+
+    if "start_date" not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN start_date DATE")
+
+    if "points" not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN points INTEGER DEFAULT 0")
+
     # CHECKINS TABELLE
     c.execute('''
         CREATE TABLE IF NOT EXISTS checkins (
