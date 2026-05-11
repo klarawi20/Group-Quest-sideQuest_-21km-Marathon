@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import date, datetime
+import random
 
 # --- DATENBANK FUNKTIONEN ---
 def init_db():
@@ -85,10 +86,32 @@ menu = [
     "Anmeldung",
     "Mein Trainingsplan",
     "Leaderboard",
-    "Check-in"
+    "Check-in",
+    "Community-Feed"
 ]
 
 choice = st.sidebar.selectbox("Navigation", menu)
+
+# =========================================================
+# MOTIVATIONS-QUOTE DES TAGES
+# =========================================================
+
+quotes = [
+    "Der Schmerz vergeht. Der Stolz bleibt. 💪",
+    "Jeder Kilometer bringt dich näher ans Ziel. 🏃",
+    "Heute laufen, morgen stärker sein. 🔥",
+    "Disziplin schlägt Motivation. 🚀",
+    "Kleine Schritte führen zu großen Erfolgen. 🌟",
+    "Du musst nicht schnell sein. Du musst anfangen. 👟",
+    "Aufgeben ist keine Pace. 🏁",
+    "Der einzige schlechte Lauf ist der, der nicht stattfindet. 🌈"
+]
+
+daily_quote = quotes[date.today().toordinal() % len(quotes)]
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("💬 Motivation des Tages")
+st.sidebar.info(daily_quote)
 
 # =========================================================
 # ANMELDUNG
@@ -517,3 +540,41 @@ elif choice == "Check-in":
                 history_df,
                 use_container_width=True
             )
+# =========================================================
+# COMMUNITY-FEED
+# =========================================================
+elif choice == "Community-Feed":
+
+    st.title("📰 Community-Feed")
+    st.write("Wer hat zuletzt trainiert?")
+
+    conn = sqlite3.connect("quest.db")
+
+    feed_df = pd.read_sql_query(
+        """
+        SELECT 
+            users.firstname AS Vorname,
+            checkins.run_date AS Datum,
+            checkins.actual_km AS Kilometer,
+            checkins.duration_min AS Minuten,
+            checkins.points_earned AS Punkte
+        FROM checkins
+        JOIN users ON checkins.user_id = users.id
+        ORDER BY checkins.id DESC
+        LIMIT 10
+        """,
+        conn
+    )
+
+    conn.close()
+
+    if feed_df.empty:
+        st.info("Noch keine Trainings im Community-Feed.")
+
+    else:
+        feed_df.index = feed_df.index + 1
+
+        st.dataframe(
+            feed_df,
+            use_container_width=True
+        )            
