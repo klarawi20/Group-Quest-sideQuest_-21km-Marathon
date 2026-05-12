@@ -47,6 +47,16 @@ def init_db():
         )
     ''')
 
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS badges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            badge_name TEXT,
+            earned_date DATE,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')    
+
     conn.commit()
     conn.close()
 
@@ -78,6 +88,7 @@ def save_user(fname, lname, password, start_date):
 
 # --- APP INITIALISIERUNG ---
 init_db()
+
 
 # --- SIDEBAR ---
 st.sidebar.title("🏃‍♂️ 21km-Challenge")
@@ -483,6 +494,43 @@ elif choice == "Check-in":
                                 )
                             )
 
+                            # =====================================
+                            # BADGES PRÜFEN
+                            # =====================================
+
+                            badges_to_check = [
+                                (5, "5km Finisher"),
+                                (10, "10km Champion"),
+                                (21.1, "Halbmarathon-Hero")
+                            ]
+
+                            for required_km, badge_name in badges_to_check:
+                                if km >= required_km:
+                                    c.execute(
+                                        """
+                                        SELECT id
+                                        FROM badges
+                                        WHERE user_id = ?
+                                        AND badge_name = ?
+                                        """,
+                                        (user_id, badge_name)
+                                    )
+
+                                    badge_exists = c.fetchone()
+
+                                    if badge_exists is None:
+                                        c.execute(
+                                            """
+                                            INSERT INTO badges
+                                            (user_id, badge_name, earned_date)
+                                            VALUES (?, ?, ?)
+                                            """,
+                                            (user_id, badge_name, date.today())
+                                        )
+
+                                        st.success(
+                                            f"🏅 Neues Badge freigeschaltet: {badge_name}!"
+                                        )
                             conn.commit()
 
                             st.success(
@@ -496,6 +544,8 @@ elif choice == "Check-in":
 
                     except Exception as e:
                         st.error(f"Fehler beim Speichern: {e}")
+
+                        
         # =====================================
         # LETZTE CHECK-INS ANZEIGEN
         # =====================================
@@ -540,6 +590,46 @@ elif choice == "Check-in":
                 history_df,
                 use_container_width=True
             )
+
+        # =====================================
+        # BADGES ANZEIGEN
+        # =====================================
+
+        st.subheader("🏅 Deine Badges")
+
+        conn = sqlite3.connect("quest.db")
+
+        badges_df = pd.read_sql_query(
+            """
+            SELECT 
+                badge_name AS Badge,
+                earned_date AS Erhalten_am
+            FROM badges
+            WHERE user_id = (
+                SELECT id
+                FROM users
+                WHERE firstname = ?
+                ORDER BY id DESC
+                LIMIT 1
+            )
+            """,
+            conn,
+            params=(st.session_state.user,)
+        )
+
+        conn.close()
+
+        if badges_df.empty:
+            st.info("Noch keine Badges gesammelt.")
+
+        else:
+            badges_df.index = badges_df.index + 1
+
+            st.dataframe(
+                badges_df,
+                use_container_width=True
+            )
+
 # =========================================================
 # COMMUNITY-FEED
 # =========================================================
@@ -577,4 +667,4 @@ elif choice == "Community-Feed":
         st.dataframe(
             feed_df,
             use_container_width=True
-        )            
+        ) 
