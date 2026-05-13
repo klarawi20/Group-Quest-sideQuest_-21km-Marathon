@@ -6,7 +6,7 @@ def init_db():
     conn = sqlite3.connect('quest.db')
     c = conn.cursor()
 
-    # 1. User-Tabelle (falls noch nicht perfekt)
+    # 1. User-Tabelle 
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   firstname TEXT, 
@@ -15,7 +15,7 @@ def init_db():
                   start_date DATE,
                   points INTEGER DEFAULT 0)''')
 
-    # 2. Check-in Tabelle (Die Erweiterung für Sprints/Läufe)
+    # 2. Check-in Tabelle für geloggte Läufe
     c.execute('''CREATE TABLE IF NOT EXISTS checkins 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   user_id INTEGER, 
@@ -136,7 +136,7 @@ elif choice == "Profil & Statistik":
     else:
         st.warning("⚠️ Bitte logge dich zuerst unter 'Anmeldung' ein.")
 
-# --- SEITE: TRAININGSPLAN (Hier geht dein alter Code weiter) ---
+# --- SEITE: TRAININGSPLAN
 elif choice == "Mein Trainingsplan":
     st.title("🏃‍♂️ Dein Weg zum Halbmarathon")
     st.markdown("""
